@@ -52,15 +52,9 @@
 
         unstable_typstPackages = [
           {
-            name = "cetz";
-            version = "0.3.4";
-            hash = "sha256-5w3UYRUSdi4hCvAjrp9HslzrUw7BhgDdeCiDRHGvqd4=";
-          }
-          # Required by cetz
-          {
-            name = "oxifmt";
-            version = "0.2.1";
-            hash = "sha256-8PNPa9TGFybMZ1uuJwb5ET0WGIInmIgg8h24BmdfxlU=";
+            name = "tufte-memo";
+            version = "0.1.2";
+            hash = "sha256-0cgqi1qm3s6877rfsrdgp9i0zmibza71wr6vw537jy9f4hn537cc";
           }
         ];
 

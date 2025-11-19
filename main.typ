@@ -1,8 +1,11 @@
-#import "@preview/cetz:0.3.4"
+#import "@preview/tufte-memo:0.1.2": *
 
-#cetz.canvas({
-  import cetz.draw: *
-
-  circle((0, 0))
-  line((0, 0), (2, 1))
-})
+#show: template.with(
+  title: [Mathematical Diary],
+  authors: (
+    (
+      name: "cuso4d",
+      email: "cuso4d@nightcord.unknown.tld",
+    ),
+  ),
+)
