@@ -6,6 +6,9 @@ on:
   pull_request:
     branches: [ main ]
 
+permissions:
+  contents: write
+
 jobs:
   build-pdf:
     runs-on: ubuntu-latest
@@ -21,28 +24,13 @@ jobs:
       - name: Compile main.typ to main.pdf
         run: typst compile main.typ main.pdf
 
-      - name: Delete existing 'main' artifacts
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          # Fetch all artifacts in this repo and delete those named 'main'
-          artifacts=$(gh api \
-            -H "Accept: application/vnd.github+json" \
-            -H "X-GitHub-Api-Version: 2022-11-28" \
-            /repos/${{ github.repository }}/actions/artifacts \
-            --jq '.artifacts[] | select(.name == "main") | .id')
-          
-          for id in $artifacts; do
-            echo "Deleting artifact ID: $id"
-            gh api \
-              --method DELETE \
-              -H "Accept: application/vnd.github+json" \
-              -H "X-GitHub-Api-Version: 2022-11-28" \
-              /repos/${{ github.repository }}/actions/artifacts/$id
-          done
+      - name: Move artifacts
+        run: mkdir -p ./public && cp main.pdf ./public/
 
-      - name: Upload new artifact
-        uses: actions/upload-artifact@v4
+      - name: Deploy PDF to GitHub Pages
+        uses: peaceiris/actions-gh-pages@v4
         with:
-          name: main
-          path: main.pdf
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: ./public
+          publish_branch: gh-pages
+          keep_files: false
