@@ -52,9 +52,9 @@
 
         unstable_typstPackages = [
           {
-            name = "tufte-memo";
-            version = "0.1.2";
-            hash = "sha256-0cgqi1qm3s6877rfsrdgp9i0zmibza71wr6vw537jy9f4hn537cc";
+            name = "tufted";
+            version = "0.0.1";
+            hash = "sha256-feeei1gZIbnQB04e3+mJEld51V+/cLVCACnQAuGj3BE=";
           }
         ];
 
