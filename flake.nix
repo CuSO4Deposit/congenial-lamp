@@ -1,122 +1,114 @@
 {
-  description = "A Typst project that uses Typst packages";
+  description = "Description for the project";
 
   inputs = {
+    flake-parts.url = "github:hercules-ci/flake-parts";
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
-    typix = {
-      url = "github:loqusion/typix";
-      inputs.nixpkgs.follows = "nixpkgs";
-    };
-    flake-utils.url = "github:numtide/flake-utils";
-    pre-commit-hooks.url = "github:cachix/git-hooks.nix";
-    # Example of downloading icons from a non-flake source
-    # font-awesome = {
-    #   url = "github:FortAwesome/Font-Awesome";
-    #   flake = false;
-    # };
   };
 
   outputs =
-    inputs@{
-      self,
-      nixpkgs,
-      typix,
-      flake-utils,
-      ...
-    }:
-    flake-utils.lib.eachDefaultSystem (
-      system:
-      let
-        pkgs = nixpkgs.legacyPackages.${system};
-        inherit (pkgs) lib;
+    inputs@{ flake-parts, ... }:
+    flake-parts.lib.mkFlake { inherit inputs; } {
+      imports = [
+        # To import an internal flake module: ./other.nix
+        # To import an external flake module:
+        #   1. Add foo to inputs
+        #   2. Add foo as a parameter to the outputs function
+        #   3. Add here: foo.flakeModule
 
-        typixLib = typix.lib.${system};
+      ];
+      systems = [
+        "x86_64-linux"
+        "aarch64-linux"
+        "aarch64-darwin"
+        "x86_64-darwin"
+      ];
+      perSystem =
+        {
+          config,
+          self',
+          inputs',
+          pkgs,
+          system,
+          ...
+        }:
+        {
+          # Per-system attributes can be defined here. The self' and inputs'
+          # module parameters provide easy access to attributes of the same
+          # system.
 
-        src = typixLib.cleanTypstSource ./.;
-        commonArgs = {
-          typstSource = "main.typ";
+          # Equivalent to  inputs'.nixpkgs.legacyPackages.hello;
+          apps =
+            let
+              pidFile = ".tufted.pid";
+              cleanup = ''
+                if [ ! -f ${pidFile} ]; then
+                  echo "No development server found."
+                  exit 0
+                fi
 
-          fontPaths = [
-            # Add paths to fonts here
-            # "${pkgs.roboto}/share/fonts/truetype"
-          ];
+                read -r SERV_PID < ${pidFile}
 
-          virtualPaths = [
-            # Add paths that must be locally accessible to typst here
-            # {
-            #   dest = "icons";
-            #   src = "${inputs.font-awesome}/svgs/regular";
-            # }
-          ];
-        };
+                kill -9 "$SERV_PID"
+                rm ${pidFile}
+              '';
+              startScript = pkgs.writeShellScriptBin "start-tufted" ''
+                set -e
+                if [ -f ${pidFile} ]; then
+                  echo "Development server already running (PID file ${pidFile} exists)"
+                  exit 1
+                fi
 
-        unstable_typstPackages = [
-          {
-            name = "tufted";
-            version = "0.0.1";
-            hash = "sha256-feeei1gZIbnQB04e3+mJEld51V+/cLVCACnQAuGj3BE=";
-          }
-        ];
+                echo "Live server at localhost:31415"
+                echo "Press Ctrl-C to exit."
 
-        # Compile a Typst project, *without* copying the result
-        # to the current directory
-        build-drv = typixLib.buildTypstProject (
-          commonArgs
-          // {
-            inherit src unstable_typstPackages;
-          }
-        );
+                cleanup() {
+                  ${cleanup}
+                }
 
-        # Compile a Typst project, and then copy the result
-        # to the current directory
-        build-script = typixLib.buildTypstProjectLocal (
-          commonArgs
-          // {
-            inherit src unstable_typstPackages;
-          }
-        );
+                trap cleanup INT
 
-        # Watch a project and recompile on changes
-        watch-script = typixLib.watchTypstProject commonArgs;
-      in
-      {
-        checks = {
-          inherit build-drv build-script watch-script;
-          pre-commit-check = inputs.pre-commit-hooks.lib.${system}.run {
-            src = ./.;
-            hooks = {
-              markdownlint.enable = true;
-              nixfmt-rfc-style.enable = true;
-              typstyle.enable = true;
+                live-server --port 31415 _site &
+                SERV_PID=$!
+
+                echo "$SERV_PID" > ${pidFile}
+
+                find content | entr -r make html
+              '';
+              stopScript = pkgs.writeShellScriptBin "stop-tufted" ''
+                set -e
+
+                ${cleanup}
+              '';
+            in
+            {
+              start = {
+                type = "app";
+                program = "${startScript}/bin/start-tufted";
+              };
+              stop = {
+                type = "app";
+                program = "${stopScript}/bin/stop-tufted";
+              };
             };
+          devShells.default = pkgs.mkShell {
+            packages = with pkgs; [
+              gnumake
+              entr
+              live-server
+              lolcat
+              typst
+            ];
+            shellHook = ''
+              echo 'Use `nix run .#start` to start a live server at localhost:31415' | lolcat
+            '';
           };
         };
+      flake = {
+        # The usual flake attributes can be defined here, including system-
+        # agnostic ones like nixosModule and system-enumerating ones, although
+        # those are more easily expressed in perSystem.
 
-        packages.default = build-drv;
-
-        apps = rec {
-          default = watch;
-          build = flake-utils.lib.mkApp {
-            drv = build-script;
-          };
-          watch = flake-utils.lib.mkApp {
-            drv = watch-script;
-          };
-        };
-
-        devShells.default = typixLib.devShell {
-          inherit (commonArgs) fontPaths virtualPaths;
-          inherit (self.checks.${system}.pre-commit-check) shellHook;
-          buildInputs = self.checks.${system}.pre-commit-check.enabledPackages;
-          packages = [
-            # WARNING: Don't run `typst-build` directly, instead use `nix run .#build`
-            # See https://github.com/loqusion/typix/issues/2
-            # build-script
-            watch-script
-            # More packages can be added here, like typstfmt
-            # pkgs.typstfmt
-          ];
-        };
-      }
-    );
+      };
+    };
 }
